@@ -347,7 +347,7 @@ app.get('/api/quiz/:id/results', requireAuth, async (req, res) => {
   }
 });
 
-// FIXED: Get all results grouped by quiz
+// Get all results grouped by quiz - FIXED VERSION
 app.get('/api/quiz/all-results', requireAuth, async (req, res) => {
   try {
     console.log('Fetching all results for teacher:', req.session.teacherId);
@@ -366,37 +366,42 @@ app.get('/api/quiz/all-results', requireAuth, async (req, res) => {
     const resultsGrouped = [];
     
     for (const quiz of teacherQuizzes) {
-      const submissions = await Submission.find({ quiz: quiz._id })
-        .sort({ submittedAt: -1 });
-      
-      console.log(`Quiz ${quiz.title}: ${submissions.length} submissions`);
-      
-      if (submissions.length > 0) {
-        const averageScore = Math.round(
-          submissions.reduce((acc, sub) => acc + sub.percentage, 0) / submissions.length
-        );
+      try {
+        const submissions = await Submission.find({ quiz: quiz._id })
+          .sort({ submittedAt: -1 });
         
-        resultsGrouped.push({
-          quiz: {
-            id: quiz._id,
-            title: quiz.title,
-            subject: quiz.subject,
-            createdAt: quiz.createdAt,
-            questionCount: quiz.questions.length
-          },
-          submissions: submissions.map(sub => ({
-            id: sub._id,
-            studentName: sub.studentName,
-            studentEmail: sub.studentEmail,
-            score: sub.score,
-            totalQuestions: sub.totalQuestions,
-            percentage: sub.percentage,
-            timeSpent: sub.timeSpent,
-            submittedAt: sub.submittedAt
-          })),
-          submissionCount: submissions.length,
-          averageScore: averageScore
-        });
+        console.log(`Quiz ${quiz.title}: ${submissions.length} submissions`);
+        
+        if (submissions.length > 0) {
+          const averageScore = Math.round(
+            submissions.reduce((acc, sub) => acc + sub.percentage, 0) / submissions.length
+          );
+          
+          resultsGrouped.push({
+            quiz: {
+              id: quiz._id,
+              title: quiz.title,
+              subject: quiz.subject,
+              createdAt: quiz.createdAt,
+              questionCount: quiz.questions ? quiz.questions.length : 0
+            },
+            submissions: submissions.map(sub => ({
+              id: sub._id,
+              studentName: sub.studentName,
+              studentEmail: sub.studentEmail,
+              score: sub.score,
+              totalQuestions: sub.totalQuestions,
+              percentage: sub.percentage,
+              timeSpent: sub.timeSpent,
+              submittedAt: sub.submittedAt
+            })),
+            submissionCount: submissions.length,
+            averageScore: averageScore
+          });
+        }
+      } catch (submissionError) {
+        console.error(`Error fetching submissions for quiz ${quiz._id}:`, submissionError);
+        // Continue with other quizzes even if one fails
       }
     }
     

@@ -1,9 +1,10 @@
-// Dashboard functionality
+// Dashboard functionality - Clean version without duplicates
 let currentTeacher = null;
 let questions = [];
 let deleteQuizId = null;
 
 document.addEventListener('DOMContentLoaded', function() {
+    console.log('Dashboard loaded, initializing...');
     checkAuth();
     setupTabs();
     setupQuizForm();
@@ -17,13 +18,19 @@ async function checkAuth() {
         const result = await response.json();
         
         if (!result.authenticated) {
+            console.log('Not authenticated, redirecting to login');
             window.location.href = '/';
             return;
         }
         
         currentTeacher = result.teacher;
-        document.getElementById('teacherName').textContent = result.teacher.name;
-        document.getElementById('teacherSubject').textContent = result.teacher.subject;
+        const teacherNameEl = document.getElementById('teacherName');
+        const teacherSubjectEl = document.getElementById('teacherSubject');
+        
+        if (teacherNameEl) teacherNameEl.textContent = result.teacher.name;
+        if (teacherSubjectEl) teacherSubjectEl.textContent = result.teacher.subject;
+        
+        console.log('Authentication successful for:', result.teacher.name);
     } catch (error) {
         console.error('Auth check error:', error);
         window.location.href = '/';
@@ -42,6 +49,8 @@ function setupTabs() {
 }
 
 function switchTab(tabName) {
+    console.log('Switching to tab:', tabName);
+    
     // Update active tab button
     document.querySelectorAll('.tab-btn').forEach(btn => {
         btn.classList.toggle('active', btn.dataset.tab === tabName);
@@ -62,10 +71,13 @@ function switchTab(tabName) {
 
 function setupQuizForm() {
     const form = document.getElementById('quizForm');
-    form.addEventListener('submit', createQuiz);
-    
-    // Add first question by default
-    addQuestion();
+    if (form) {
+        form.addEventListener('submit', createQuiz);
+        // Add first question by default
+        addQuestion();
+    } else {
+        console.error('Quiz form not found');
+    }
 }
 
 function addQuestion() {
@@ -114,8 +126,11 @@ function addQuestion() {
         </div>
     `;
     
-    document.getElementById('questionsContainer').insertAdjacentHTML('beforeend', questionHtml);
-    questions.push({ index: questionIndex });
+    const container = document.getElementById('questionsContainer');
+    if (container) {
+        container.insertAdjacentHTML('beforeend', questionHtml);
+        questions.push({ index: questionIndex });
+    }
 }
 
 function removeQuestion(index) {
@@ -125,7 +140,9 @@ function removeQuestion(index) {
     }
     
     const questionElement = document.querySelector(`[data-question="${index}"]`);
-    questionElement.remove();
+    if (questionElement) {
+        questionElement.remove();
+    }
     
     questions = questions.filter(q => q.index !== index);
     
@@ -139,11 +156,12 @@ function renumberQuestions() {
     
     questionElements.forEach((element, index) => {
         element.dataset.question = index;
-        element.querySelector('h4').textContent = `Question ${index + 1}`;
+        const h4 = element.querySelector('h4');
+        if (h4) h4.textContent = `Question ${index + 1}`;
         
         // Update form field names
         const textarea = element.querySelector('textarea');
-        textarea.name = `question_${index}`;
+        if (textarea) textarea.name = `question_${index}`;
         
         const inputs = element.querySelectorAll('input[type="text"]');
         inputs.forEach((input, optionIndex) => {
@@ -151,11 +169,11 @@ function renumberQuestions() {
         });
         
         const select = element.querySelector('select');
-        select.name = `correct_${index}`;
+        if (select) select.name = `correct_${index}`;
         
         // Update remove button
         const removeBtn = element.querySelector('button[onclick*="removeQuestion"]');
-        removeBtn.setAttribute('onclick', `removeQuestion(${index})`);
+        if (removeBtn) removeBtn.setAttribute('onclick', `removeQuestion(${index})`);
         
         questions.push({ index });
     });
@@ -218,7 +236,10 @@ async function createQuiz(e) {
             
             // Reset form
             e.target.reset();
-            document.getElementById('questionsContainer').innerHTML = '<h3>Questions</h3>';
+            const questionsContainer = document.getElementById('questionsContainer');
+            if (questionsContainer) {
+                questionsContainer.innerHTML = '<h3>Questions</h3>';
+            }
             questions = [];
             addQuestion();
             
@@ -235,6 +256,8 @@ async function createQuiz(e) {
 
 async function loadQuizzes() {
     const container = document.getElementById('quizzesContainer');
+    if (!container) return;
+    
     container.innerHTML = '<div class="loading">Loading quizzes...</div>';
     
     try {
@@ -254,6 +277,7 @@ async function loadQuizzes() {
 
 function displayQuizzes(quizzes) {
     const container = document.getElementById('quizzesContainer');
+    if (!container) return;
     
     if (quizzes.length === 0) {
         container.innerHTML = `
@@ -320,11 +344,17 @@ async function toggleQuiz(quizId, isActive) {
 
 function deleteQuiz(quizId) {
     deleteQuizId = quizId;
-    document.getElementById('deleteModal').style.display = 'flex';
+    const modal = document.getElementById('deleteModal');
+    if (modal) {
+        modal.style.display = 'flex';
+    }
 }
 
 function closeDeleteModal() {
-    document.getElementById('deleteModal').style.display = 'none';
+    const modal = document.getElementById('deleteModal');
+    if (modal) {
+        modal.style.display = 'none';
+    }
     deleteQuizId = null;
 }
 
@@ -372,6 +402,8 @@ async function viewQuizResults(quizId) {
 
 async function loadResults() {
     const container = document.getElementById('resultsContainer');
+    if (!container) return;
+    
     container.innerHTML = '<div class="loading">Loading results...</div>';
     
     try {
@@ -400,6 +432,7 @@ async function loadResults() {
 
 function displayAllResults(resultsData) {
     const container = document.getElementById('resultsContainer');
+    if (!container) return;
     
     if (!resultsData || resultsData.length === 0) {
         container.innerHTML = `
@@ -463,6 +496,7 @@ function displayAllResults(resultsData) {
 
 function displayQuizResults(data) {
     const container = document.getElementById('resultsContainer');
+    if (!container) return;
     
     if (data.submissions.length === 0) {
         container.innerHTML = `
@@ -579,11 +613,13 @@ async function logout() {
 
 function showNotification(message, type = 'success') {
     const notification = document.getElementById('notification');
-    notification.textContent = message;
-    notification.className = `notification ${type}`;
-    notification.classList.add('show');
-    
-    setTimeout(() => {
-        notification.classList.remove('show');
-    }, 4000);
+    if (notification) {
+        notification.textContent = message;
+        notification.className = `notification ${type}`;
+        notification.classList.add('show');
+        
+        setTimeout(() => {
+            notification.classList.remove('show');
+        }, 4000);
+    }
 }
