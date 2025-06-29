@@ -347,69 +347,99 @@ app.get('/api/quiz/:id/results', requireAuth, async (req, res) => {
   }
 });
 
-// Get all results grouped by quiz - FIXED VERSION
+// Get all results grouped by quiz - COMPLETELY FIXED VERSION
 app.get('/api/quiz/all-results', requireAuth, async (req, res) => {
   try {
-    console.log('Fetching all results for teacher:', req.session.teacherId);
+    console.log('=== FETCHING ALL RESULTS ===');
+    console.log('Teacher ID:', req.session.teacherId);
+    
+    // Validate teacher session
+    if (!req.session.teacherId) {
+      console.log('No teacher ID in session');
+      return res.status(401).json({ error: 'Authentication required' });
+    }
     
     // Get all quizzes for this teacher
     const teacherQuizzes = await Quiz.find({ teacher: req.session.teacherId })
       .select('_id title subject createdAt questions')
-      .sort({ createdAt: -1 });
+      .sort({ createdAt: -1 })
+      .lean(); // Use lean() for better performance
     
-    console.log('Found quizzes:', teacherQuizzes.length);
+    console.log(`Found ${teacherQuizzes.length} quizzes for teacher`);
     
     if (teacherQuizzes.length === 0) {
+      console.log('No quizzes found, returning empty array');
       return res.json([]);
     }
     
     const resultsGrouped = [];
     
+    // Process each quiz
     for (const quiz of teacherQuizzes) {
       try {
-        const submissions = await Submission.find({ quiz: quiz._id })
-          .sort({ submittedAt: -1 });
+        console.log(`Processing quiz: ${quiz.title} (${quiz._id})`);
         
-        console.log(`Quiz ${quiz.title}: ${submissions.length} submissions`);
+        const submissions = await Submission.find({ quiz: quiz._id })
+          .select('studentName studentEmail score totalQuestions percentage timeSpent submittedAt')
+          .sort({ submittedAt: -1 })
+          .lean();
+        
+        console.log(`Found ${submissions.length} submissions for quiz ${quiz.title}`);
         
         if (submissions.length > 0) {
-          const averageScore = Math.round(
-            submissions.reduce((acc, sub) => acc + sub.percentage, 0) / submissions.length
-          );
+          // Calculate average score safely
+          const totalPercentage = submissions.reduce((acc, sub) => {
+            return acc + (sub.percentage || 0);
+          }, 0);
+          const averageScore = submissions.length > 0 ? Math.round(totalPercentage / submissions.length) : 0;
           
-          resultsGrouped.push({
+          const quizResult = {
             quiz: {
-              id: quiz._id,
+              id: quiz._id.toString(),
               title: quiz.title,
               subject: quiz.subject,
               createdAt: quiz.createdAt,
               questionCount: quiz.questions ? quiz.questions.length : 0
             },
             submissions: submissions.map(sub => ({
-              id: sub._id,
-              studentName: sub.studentName,
-              studentEmail: sub.studentEmail,
-              score: sub.score,
-              totalQuestions: sub.totalQuestions,
-              percentage: sub.percentage,
-              timeSpent: sub.timeSpent,
-              submittedAt: sub.submittedAt
+              id: sub._id.toString(),
+              studentName: sub.studentName || 'Unknown',
+              studentEmail: sub.studentEmail || 'Unknown',
+              score: sub.score || 0,
+              totalQuestions: sub.totalQuestions || 0,
+              percentage: sub.percentage || 0,
+              timeSpent: sub.timeSpent || 0,
+              submittedAt: sub.submittedAt || new Date()
             })),
             submissionCount: submissions.length,
             averageScore: averageScore
-          });
+          };
+          
+          resultsGrouped.push(quizResult);
+          console.log(`Added quiz ${quiz.title} to results with ${submissions.length} submissions`);
+        } else {
+          console.log(`No submissions for quiz ${quiz.title}, skipping`);
         }
       } catch (submissionError) {
-        console.error(`Error fetching submissions for quiz ${quiz._id}:`, submissionError);
+        console.error(`Error processing quiz ${quiz._id}:`, submissionError);
         // Continue with other quizzes even if one fails
+        continue;
       }
     }
     
-    console.log('Returning results for', resultsGrouped.length, 'quizzes with submissions');
+    console.log(`=== RESULTS SUMMARY ===`);
+    console.log(`Total quizzes with submissions: ${resultsGrouped.length}`);
+    console.log(`Returning results to client`);
+    
     res.json(resultsGrouped);
   } catch (error) {
-    console.error('Error fetching all results:', error);
-    res.status(500).json({ error: 'Failed to fetch results' });
+    console.error('=== ERROR IN ALL-RESULTS ENDPOINT ===');
+    console.error('Error details:', error);
+    console.error('Stack trace:', error.stack);
+    res.status(500).json({ 
+      error: 'Failed to fetch results',
+      details: error.message 
+    });
   }
 });
 

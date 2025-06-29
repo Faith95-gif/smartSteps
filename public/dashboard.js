@@ -1,7 +1,9 @@
-// Dashboard functionality - Clean version without duplicates
-let currentTeacher = null;
-let questions = [];
-let deleteQuizId = null;
+// Dashboard functionality - Clean version
+let dashboardState = {
+    currentTeacher: null,
+    questions: [],
+    deleteQuizId: null
+};
 
 document.addEventListener('DOMContentLoaded', function() {
     console.log('Dashboard loaded, initializing...');
@@ -23,7 +25,7 @@ async function checkAuth() {
             return;
         }
         
-        currentTeacher = result.teacher;
+        dashboardState.currentTeacher = result.teacher;
         const teacherNameEl = document.getElementById('teacherName');
         const teacherSubjectEl = document.getElementById('teacherSubject');
         
@@ -81,7 +83,7 @@ function setupQuizForm() {
 }
 
 function addQuestion() {
-    const questionIndex = questions.length;
+    const questionIndex = dashboardState.questions.length;
     const questionHtml = `
         <div class="question-item" data-question="${questionIndex}">
             <div class="question-header">
@@ -129,12 +131,12 @@ function addQuestion() {
     const container = document.getElementById('questionsContainer');
     if (container) {
         container.insertAdjacentHTML('beforeend', questionHtml);
-        questions.push({ index: questionIndex });
+        dashboardState.questions.push({ index: questionIndex });
     }
 }
 
 function removeQuestion(index) {
-    if (questions.length <= 1) {
+    if (dashboardState.questions.length <= 1) {
         showNotification('You must have at least one question', 'error');
         return;
     }
@@ -144,7 +146,7 @@ function removeQuestion(index) {
         questionElement.remove();
     }
     
-    questions = questions.filter(q => q.index !== index);
+    dashboardState.questions = dashboardState.questions.filter(q => q.index !== index);
     
     // Renumber remaining questions
     renumberQuestions();
@@ -152,7 +154,7 @@ function removeQuestion(index) {
 
 function renumberQuestions() {
     const questionElements = document.querySelectorAll('.question-item');
-    questions = [];
+    dashboardState.questions = [];
     
     questionElements.forEach((element, index) => {
         element.dataset.question = index;
@@ -175,7 +177,7 @@ function renumberQuestions() {
         const removeBtn = element.querySelector('button[onclick*="removeQuestion"]');
         if (removeBtn) removeBtn.setAttribute('onclick', `removeQuestion(${index})`);
         
-        questions.push({ index });
+        dashboardState.questions.push({ index });
     });
 }
 
@@ -189,7 +191,7 @@ async function createQuiz(e) {
     // Collect questions
     const quizQuestions = [];
     
-    for (let i = 0; i < questions.length; i++) {
+    for (let i = 0; i < dashboardState.questions.length; i++) {
         const question = formData.get(`question_${i}`);
         const options = [
             formData.get(`option_${i}_0`),
@@ -240,7 +242,7 @@ async function createQuiz(e) {
             if (questionsContainer) {
                 questionsContainer.innerHTML = '<h3>Questions</h3>';
             }
-            questions = [];
+            dashboardState.questions = [];
             addQuestion();
             
             // Switch to quizzes tab and reload
@@ -343,7 +345,7 @@ async function toggleQuiz(quizId, isActive) {
 }
 
 function deleteQuiz(quizId) {
-    deleteQuizId = quizId;
+    dashboardState.deleteQuizId = quizId;
     const modal = document.getElementById('deleteModal');
     if (modal) {
         modal.style.display = 'flex';
@@ -355,14 +357,14 @@ function closeDeleteModal() {
     if (modal) {
         modal.style.display = 'none';
     }
-    deleteQuizId = null;
+    dashboardState.deleteQuizId = null;
 }
 
 async function confirmDelete() {
-    if (!deleteQuizId) return;
+    if (!dashboardState.deleteQuizId) return;
     
     try {
-        const response = await fetch(`/api/quiz/${deleteQuizId}`, {
+        const response = await fetch(`/api/quiz/${dashboardState.deleteQuizId}`, {
             method: 'DELETE'
         });
         
