@@ -284,7 +284,7 @@ app.patch('/api/quiz/:id/toggle', requireAuth, async (req, res) => {
   }
 });
 
-// NEW: Delete quiz endpoint
+// Delete quiz endpoint
 app.delete('/api/quiz/:id', requireAuth, async (req, res) => {
   try {
     const quiz = await Quiz.findOne({ _id: req.params.id, teacher: req.session.teacherId });
@@ -308,7 +308,7 @@ app.delete('/api/quiz/:id', requireAuth, async (req, res) => {
   }
 });
 
-// ENHANCED: Get results for a specific quiz (separate results)
+// Get results for a specific quiz
 app.get('/api/quiz/:id/results', requireAuth, async (req, res) => {
   try {
     const quiz = await Quiz.findOne({ _id: req.params.id, teacher: req.session.teacherId });
@@ -318,7 +318,6 @@ app.get('/api/quiz/:id/results', requireAuth, async (req, res) => {
     }
     
     const submissions = await Submission.find({ quiz: req.params.id })
-      .populate('quiz', 'title')
       .sort({ submittedAt: -1 });
     
     // Enhanced response with quiz details
@@ -339,8 +338,7 @@ app.get('/api/quiz/:id/results', requireAuth, async (req, res) => {
         totalQuestions: sub.totalQuestions,
         percentage: sub.percentage,
         timeSpent: sub.timeSpent,
-        submittedAt: sub.submittedAt,
-        quiz: sub.quiz
+        submittedAt: sub.submittedAt
       }))
     });
   } catch (error) {
@@ -349,27 +347,42 @@ app.get('/api/quiz/:id/results', requireAuth, async (req, res) => {
   }
 });
 
-// NEW: Get all results grouped by quiz
+// FIXED: Get all results grouped by quiz
 app.get('/api/quiz/all-results', requireAuth, async (req, res) => {
   try {
+    console.log('Fetching all results for teacher:', req.session.teacherId);
+    
+    // Get all quizzes for this teacher
     const teacherQuizzes = await Quiz.find({ teacher: req.session.teacherId })
-      .select('_id title subject createdAt')
+      .select('_id title subject createdAt questions')
       .sort({ createdAt: -1 });
+    
+    console.log('Found quizzes:', teacherQuizzes.length);
+    
+    if (teacherQuizzes.length === 0) {
+      return res.json([]);
+    }
     
     const resultsGrouped = [];
     
     for (const quiz of teacherQuizzes) {
       const submissions = await Submission.find({ quiz: quiz._id })
-        .populate('quiz', 'title')
         .sort({ submittedAt: -1 });
       
+      console.log(`Quiz ${quiz.title}: ${submissions.length} submissions`);
+      
       if (submissions.length > 0) {
+        const averageScore = Math.round(
+          submissions.reduce((acc, sub) => acc + sub.percentage, 0) / submissions.length
+        );
+        
         resultsGrouped.push({
           quiz: {
             id: quiz._id,
             title: quiz.title,
             subject: quiz.subject,
-            createdAt: quiz.createdAt
+            createdAt: quiz.createdAt,
+            questionCount: quiz.questions.length
           },
           submissions: submissions.map(sub => ({
             id: sub._id,
@@ -382,11 +395,12 @@ app.get('/api/quiz/all-results', requireAuth, async (req, res) => {
             submittedAt: sub.submittedAt
           })),
           submissionCount: submissions.length,
-          averageScore: Math.round(submissions.reduce((acc, sub) => acc + sub.percentage, 0) / submissions.length)
+          averageScore: averageScore
         });
       }
     }
     
+    console.log('Returning results for', resultsGrouped.length, 'quizzes with submissions');
     res.json(resultsGrouped);
   } catch (error) {
     console.error('Error fetching all results:', error);
@@ -395,7 +409,7 @@ app.get('/api/quiz/all-results', requireAuth, async (req, res) => {
 });
 
 // Student Routes
-// NEW: Start quiz session (for timer tracking)
+// Start quiz session (for timer tracking)
 app.post('/api/student/start/:quizId', async (req, res) => {
   try {
     const { studentName, studentEmail } = req.body;
@@ -502,7 +516,7 @@ app.post('/api/student/submit/:quizId', async (req, res) => {
   }
 });
 
-// CRITICAL: Enhanced correction endpoint
+// Enhanced correction endpoint
 app.get('/api/student/correction/:submissionId', async (req, res) => {
   try {
     const submissionId = req.params.submissionId;
@@ -564,7 +578,7 @@ app.get('/quiz/:id', (req, res) => {
   res.sendFile(path.join(__dirname, 'public', 'quiz.html'));
 });
 
-// CRITICAL: Add route for correction page
+// Add route for correction page
 app.get('/correction.html', (req, res) => {
   res.sendFile(path.join(__dirname, 'public', 'correction.html'));
 });

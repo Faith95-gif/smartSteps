@@ -375,24 +375,33 @@ async function loadResults() {
     container.innerHTML = '<div class="loading">Loading results...</div>';
     
     try {
+        console.log('Loading all results...');
         const response = await fetch('/api/quiz/all-results');
-        const results = await response.json();
         
-        if (response.ok) {
-            displayAllResults(results);
-        } else {
-            container.innerHTML = '<p>Failed to load results</p>';
+        if (!response.ok) {
+            throw new Error(`HTTP error! status: ${response.status}`);
         }
+        
+        const results = await response.json();
+        console.log('Received results:', results);
+        
+        displayAllResults(results);
     } catch (error) {
         console.error('Error loading results:', error);
-        container.innerHTML = '<p>Error loading results</p>';
+        container.innerHTML = `
+            <div class="text-center">
+                <h3>Error Loading Results</h3>
+                <p>There was an error loading the results. Please try again.</p>
+                <button onclick="loadResults()" class="btn btn-primary">Retry</button>
+            </div>
+        `;
     }
 }
 
 function displayAllResults(resultsData) {
     const container = document.getElementById('resultsContainer');
     
-    if (resultsData.length === 0) {
+    if (!resultsData || resultsData.length === 0) {
         container.innerHTML = `
             <div class="text-center">
                 <h3>No results yet</h3>
@@ -409,6 +418,7 @@ function displayAllResults(resultsData) {
                 <div class="quiz-stats">
                     <span>📊 ${quizData.submissionCount} submissions</span>
                     <span>📈 ${quizData.averageScore}% average</span>
+                    <span>📝 ${quizData.quiz.questionCount || 'N/A'} questions</span>
                     <span>📅 ${new Date(quizData.quiz.createdAt).toLocaleDateString()}</span>
                 </div>
             </div>
@@ -541,8 +551,13 @@ function viewCorrection(submissionId) {
 }
 
 async function refreshResults() {
-    await loadResults();
-    showNotification('Results refreshed', 'success');
+    try {
+        await loadResults();
+        showNotification('Results refreshed', 'success');
+    } catch (error) {
+        console.error('Error refreshing results:', error);
+        showNotification('Failed to refresh results', 'error');
+    }
 }
 
 async function logout() {
